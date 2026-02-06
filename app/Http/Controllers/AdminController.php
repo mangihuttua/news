@@ -4,8 +4,13 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\News;
+use App\Models\User;
+use App\Notifications\AdminNotification;
+use Illuminate\Support\Facades\Notification;
+
 class AdminController extends Controller
 {
+    //Tampilan halaman utama admin
     public function adminIndex()
     {   $news = News::paginate(4);
         $stats = [
@@ -14,11 +19,13 @@ class AdminController extends Controller
         return view('admin.index', compact('news', 'stats'));
     }
 
+    //Tampilan halaman tambah berita
     public function adminAdd()
     {
         return view('admin.add');
     }
 
+    //Proses mengirim data setelah tambah berita
     public function adminStore(Request $request)
     {
         $validatedData = $request->validate([
@@ -31,14 +38,14 @@ class AdminController extends Controller
             'isi_contenct' => 'required|string',
         ]);
 
-        // Handle file upload
+    // Memastikan file ada sebelun disimpan
         if ($request->hasFile('gambar')) {
             $gambar = $request->file('gambar');
             $imagePath = $gambar->store('gambar_berita', 'public');
             }
 
 
-        News::create([
+        $news = News::create([
             'judul' => $validatedData['judul'],
             'deskripsi' => $validatedData['deskripsi'],
             'kategori' => $validatedData['kategori'],
@@ -48,15 +55,23 @@ class AdminController extends Controller
             'isi_contenct' => $validatedData['isi_contenct'],
         ]);
 
+        // Kirim notifikasi ke semua user bahwa berita baru dibuat
+        $users = User::all();
+        if ($users->isNotEmpty()) {
+            Notification::send($users, new AdminNotification($news, 'created'));
+        }
+
         return redirect()->route('admin.index')->with('success', 'Berita berhasil ditambahkan.');
     }
 
+    //Tampilan halaman edit berita
     public function adminEdit($id)
     {
         $news = News::find($id);
         return view('admin.edit', compact('news'));
     }
 
+    //Proses mengirim data setelah edit berita
     public function adminUpdate(Request $request, $id)
     {
         $validatedData = $request->validate([
@@ -71,7 +86,7 @@ class AdminController extends Controller
 
         $news = News::find($id);
 
-        // Handle file upload
+        // Memastikan file ada sebelum disimpan
         if ($request->hasFile('gambar')) {
             $gambar = $request->file('gambar');
             $imagePath = $gambar->store('gambar_berita', 'public');
@@ -84,30 +99,43 @@ class AdminController extends Controller
         $news->penulis = $validatedData['penulis'];
         $news->jabatan_penulis = $validatedData['jabatan_penulis'];
         $news->isi_contenct = $validatedData['isi_contenct'];
-        $news->save();
+       $users = User::all();
+        if ($users->isNotEmpty()) {
+        Notification::send($users, new AdminNotification($news, 'updated'));
+        }
+
         return redirect()->route('admin.index')->with('success', 'Berita berhasil diperbarui.');
     }
 
+   //Proses menghapus berita berdasarkan id
     public function adminDelete($id)
     {
         $news = News::find($id);
         $judul = $news->judul;
-        $kategori = $news->kategori;
-        
+
+        Notification::send(
+        User::all(),
+        new AdminNotification($news, 'deleted')
+         );
+
         $news->delete();
 
-        // Kirim notifikasi ke semua user
-        $users = User::all();
-        $deletedNews = (object) [
-            'id' => null,
-            'judul' => $judul,
-            'kategori' => $kategori,
-            'penulis' => $news->penulis,
-        ];
-        foreach ($users as $user) {
-            $user->notify(new NewsNotification($deletedNews, 'deleted'));
-        }
-
-        return redirect()->route('admin.index');
+        return redirect()
+        ->route('admin.index');
     }
+
+    //Tampilan halaman notifikasi admin
+    public function adminnotifikasi()
+    {
+         $notifications = auth()->user()
+        ->notifications()
+        ->latest()
+        ->paginate(10);
+
+        // Tandai sebagai dibaca
+        auth()->user()->unreadNotifications->markAsRead();
+
+        return view('admin.notifikasi', compact('notifications'));
+    }
+
 }

@@ -23,6 +23,9 @@ Route::post('/admin/update/{id}', [AdminController::class, 'adminUpdate'])
      ->name('admin.update');
 Route::get('/admin/delete/{id}', [AdminController::class, 'adminDelete'])
      ->name('admin.delete');
+Route::get('/admin/notifikasi', [AdminController::class, 'adminNotifikasi'])
+     ->name('admin.notifikasi')
+     ->middleware('auth');
 
 Auth::routes();
 
